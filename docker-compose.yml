@@ -1,0 +1,82 @@
+networks:
+  keepalived_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  keepalived-master:
+    build:
+      context: .
+      platforms:
+        - linux/arm64
+    image: custom-keepalived:latest
+    container_name: keepalived-master
+    hostname: keepalived-master
+    networks:
+      keepalived_net:
+        ipv4_address: 172.20.0.10
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+      - NET_RAW
+    environment:
+      - KEEPALIVED_STATE=MASTER
+      - KEEPALIVED_PRIORITY=100
+      - KEEPALIVED_INTERFACE=eth0
+      - KEEPALIVED_VIRTUAL_ROUTER_ID=51
+      - KEEPALIVED_VIRTUAL_IP=172.20.0.100/16
+      - KEEPALIVED_AUTH_PASS=SecPass01
+      - ENABLE_HEALTH_CHECK=true
+      - HEALTH_CHECK_MODE=http
+      - HEALTH_CHECK_URL=http://172.20.0.50:80
+      - NOTIFICATION_METHODS=log
+    volumes:
+      - ./logs/master:/var/log/keepalived
+    restart: unless-stopped
+    depends_on:
+      - test-app
+
+  keepalived-backup:
+    build:
+      context: .
+      platforms:
+        - linux/arm64
+    image: custom-keepalived:latest
+    container_name: keepalived-backup
+    hostname: keepalived-backup
+    networks:
+      keepalived_net:
+        ipv4_address: 172.20.0.11
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+      - NET_RAW
+    environment:
+      - KEEPALIVED_STATE=BACKUP
+      - KEEPALIVED_PRIORITY=90
+      - KEEPALIVED_INTERFACE=eth0
+      - KEEPALIVED_VIRTUAL_ROUTER_ID=51
+      - KEEPALIVED_VIRTUAL_IP=172.20.0.100/16
+      - KEEPALIVED_AUTH_PASS=SecPass01
+      - ENABLE_HEALTH_CHECK=true
+      - HEALTH_CHECK_MODE=http
+      - HEALTH_CHECK_URL=http://172.20.0.50:80
+      - NOTIFICATION_METHODS=log
+    volumes:
+      - ./logs/backup:/var/log/keepalived
+    restart: unless-stopped
+    depends_on:
+      - test-app
+
+  test-app:
+    image: nginx:alpine
+    platform: linux/arm64
+    container_name: test-app
+    networks:
+      keepalived_net:
+        ipv4_address: 172.20.0.50
+    ports:
+      - "8080:80"
+    restart: unless-stopped
